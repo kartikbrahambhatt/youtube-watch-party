@@ -104,6 +104,82 @@ function canControlPlayback(
   );
 }
 
+type PlaybackRequestAction =
+  | "play"
+  | "pause"
+  | "seek"
+  | "change_video";
+
+interface PlaybackRequest {
+  requestId: string;
+  roomId: string;
+  userId: string;
+  username: string;
+  action: PlaybackRequestAction;
+  currentTime?: number;
+  videoId?: string;
+  createdAt: string;
+}
+
+const pendingPlaybackRequests =
+  new Map<string, Map<string, PlaybackRequest>>();
+
+function getPendingRequests(
+  roomId: string
+): PlaybackRequest[] {
+  return Array.from(
+    pendingPlaybackRequests.get(roomId)?.values() || []
+  );
+}
+
+function removePendingRequestsForUser(
+  roomId: string,
+  userId: string
+): boolean {
+  const requests =
+    pendingPlaybackRequests.get(roomId);
+
+  if (!requests) {
+    return false;
+  }
+
+  const removed = requests.delete(userId);
+
+  if (requests.size === 0) {
+    pendingPlaybackRequests.delete(roomId);
+  }
+
+  return removed;
+}
+
+function broadcastPendingRequests(
+  io: Server,
+  roomId: string
+): void {
+  const room = getRoom(roomId);
+
+  if (!room) {
+    return;
+  }
+
+  const requests = getPendingRequests(roomId);
+
+  room.participants.forEach((participant) => {
+    if (canControlPlayback(participant.role)) {
+      io.to(participant.socketId).emit(
+        "pending_playback_requests",
+        requests
+      );
+    }
+  });
+}
+
+function isValidYouTubeVideoId(
+  videoId: string
+): boolean {
+  return /^[A-Za-z0-9_-]{11}$/.test(videoId);
+}
+
 io.on(
   "connection",
   (socket) => {
@@ -635,8 +711,449 @@ const room =
             }
           );
 
+        // Hosts and Moderators also receive any requests that
+        // were waiting before they joined/reconnected.
+        if (canControlPlayback(participant.role)) {
+          socket.emit(
+            "pending_playback_requests",
+            getPendingRequests(normalizedRoomId)
+          );
+        }
+
         console.log(
           `${username} joined room ${normalizedRoomId}`
+        );
+      }
+    );
+
+    /*
+    |--------------------------------------------------------------------------
+    | PARTICIPANT PLAYBACK REQUESTS
+    |--------------------------------------------------------------------------
+    */
+
+    socket.on(
+      "request_playback_action",
+      (data) => {
+        const {
+          roomId,
+          userId,
+          action,
+          currentTime,
+          videoId,
+        } = data;
+
+        const normalizedRoomId =
+          roomId?.trim().toUpperCase();
+
+        if (
+          !normalizedRoomId ||
+          !userId ||
+          !action
+        ) {
+          socket.emit("error_message", {
+            message:
+              "Room ID, user ID and action are required",
+          });
+          return;
+        }
+
+        const room =
+          getRoom(normalizedRoomId);
+
+        if (!room) {
+          socket.emit("error_message", {
+            message: "Room not found",
+          });
+          return;
+        }
+
+        const requester =
+          room.participants.get(userId);
+
+        if (
+          !requester ||
+          requester.socketId !== socket.id
+        ) {
+          socket.emit("error_message", {
+            message:
+              "You are not an active participant in this room",
+          });
+          return;
+        }
+
+        if (requester.role !== "participant") {
+          socket.emit("error_message", {
+            message:
+              "Only Participants need approval for playback changes",
+          });
+          return;
+        }
+
+        const validActions: PlaybackRequestAction[] = [
+          "play",
+          "pause",
+          "seek",
+          "change_video",
+        ];
+
+        if (
+          !validActions.includes(
+            action as PlaybackRequestAction
+          )
+        ) {
+          socket.emit("error_message", {
+            message: "Invalid playback request",
+          });
+          return;
+        }
+
+        if (
+          (action === "play" ||
+            action === "pause") &&
+          currentTime !== undefined &&
+          (
+            typeof currentTime !== "number" ||
+            !Number.isFinite(currentTime) ||
+            currentTime < 0
+          )
+        ) {
+          socket.emit("error_message", {
+            message: "Invalid playback time",
+          });
+          return;
+        }
+
+        if (action === "seek") {
+          if (
+            typeof currentTime !== "number" ||
+            !Number.isFinite(currentTime) ||
+            currentTime < 0
+          ) {
+            socket.emit("error_message", {
+              message:
+                "A valid seek time is required",
+            });
+            return;
+          }
+        }
+
+        if (action === "change_video") {
+          if (
+            typeof videoId !== "string" ||
+            !isValidYouTubeVideoId(videoId.trim())
+          ) {
+            socket.emit("error_message", {
+              message:
+                "A valid YouTube video ID is required",
+            });
+            return;
+          }
+        }
+
+        const existingRequests =
+          pendingPlaybackRequests.get(
+            normalizedRoomId
+          );
+
+        if (
+          existingRequests?.has(userId)
+        ) {
+          socket.emit("error_message", {
+            message:
+              "You already have a pending request",
+          });
+          return;
+        }
+
+        const request: PlaybackRequest = {
+          requestId:
+            `${Date.now()}-${Math.random()
+              .toString(36)
+              .substring(2, 9)}`,
+          roomId: normalizedRoomId,
+          userId: requester.userId,
+          username: requester.username,
+          action:
+            action as PlaybackRequestAction,
+          createdAt:
+            new Date().toISOString(),
+        };
+
+        if (
+          action === "play" ||
+          action === "pause" ||
+          action === "seek"
+        ) {
+          request.currentTime =
+            Number(currentTime) || 0;
+        }
+
+        if (action === "change_video") {
+          request.videoId =
+            videoId.trim();
+        }
+
+        if (!existingRequests) {
+          pendingPlaybackRequests.set(
+            normalizedRoomId,
+            new Map()
+          );
+        }
+
+        pendingPlaybackRequests
+          .get(normalizedRoomId)!
+          .set(userId, request);
+
+        socket.emit(
+          "playback_request_status",
+          {
+            status: "pending",
+            message:
+              "Your request was sent to the Host/Moderator",
+          }
+        );
+
+        broadcastPendingRequests(
+          io,
+          normalizedRoomId
+        );
+      }
+    );
+
+    socket.on(
+      "respond_playback_request",
+      (data) => {
+        const {
+          roomId,
+          userId,
+          requestId,
+          approved,
+        } = data;
+
+        const normalizedRoomId =
+          roomId?.trim().toUpperCase();
+
+        if (
+          !normalizedRoomId ||
+          !userId ||
+          !requestId ||
+          typeof approved !== "boolean"
+        ) {
+          socket.emit("error_message", {
+            message:
+              "Room ID, user ID, request ID and decision are required",
+          });
+          return;
+        }
+
+        const room =
+          getRoom(normalizedRoomId);
+
+        if (!room) {
+          socket.emit("error_message", {
+            message: "Room not found",
+          });
+          return;
+        }
+
+        const approver =
+          room.participants.get(userId);
+
+        if (
+          !approver ||
+          approver.socketId !== socket.id ||
+          !canControlPlayback(approver.role)
+        ) {
+          socket.emit("error_message", {
+            message:
+              "Only the Host or Moderator can approve requests",
+          });
+          return;
+        }
+
+        const requests =
+          pendingPlaybackRequests.get(
+            normalizedRoomId
+          );
+
+        const request =
+          requests
+            ? Array.from(
+                requests.values()
+              ).find(
+                (item) =>
+                  item.requestId === requestId
+              )
+            : undefined;
+
+        if (!request) {
+          socket.emit("error_message", {
+            message:
+              "Playback request is no longer pending",
+          });
+          return;
+        }
+
+        requests!.delete(request.userId);
+
+        if (requests!.size === 0) {
+          pendingPlaybackRequests.delete(
+            normalizedRoomId
+          );
+        }
+
+        const requester =
+          room.participants.get(
+            request.userId
+          );
+
+        if (!requester) {
+          socket.emit("error_message", {
+            message:
+              "The requesting participant is no longer in the room",
+          });
+
+          broadcastPendingRequests(
+            io,
+            normalizedRoomId
+          );
+          return;
+        }
+
+        if (!approved) {
+          io.to(requester.socketId).emit(
+            "playback_request_status",
+            {
+              status: "rejected",
+              message:
+                "Your playback request was rejected",
+              requestId,
+            }
+          );
+
+          broadcastPendingRequests(
+            io,
+            normalizedRoomId
+          );
+          return;
+        }
+
+        /*
+         * Re-check the request before applying it.
+         * Approval happens only after the server validates
+         * the current room participant and requested action.
+         */
+        if (
+          request.action === "seek"
+        ) {
+          if (
+            typeof request.currentTime !== "number" ||
+            !Number.isFinite(
+              request.currentTime
+            ) ||
+            request.currentTime < 0
+          ) {
+            socket.emit("error_message", {
+              message:
+                "Invalid seek request",
+            });
+            broadcastPendingRequests(
+              io,
+              normalizedRoomId
+            );
+            return;
+          }
+
+          setCurrentTime(
+            normalizedRoomId,
+            request.currentTime
+          );
+        }
+
+        if (
+          request.action === "play" ||
+          request.action === "pause"
+        ) {
+          if (
+            typeof request.currentTime ===
+              "number" &&
+            Number.isFinite(
+              request.currentTime
+            ) &&
+            request.currentTime >= 0
+          ) {
+            setCurrentTime(
+              normalizedRoomId,
+              request.currentTime
+            );
+          }
+
+          setPlayState(
+            normalizedRoomId,
+            request.action === "play"
+              ? "playing"
+              : "paused"
+          );
+        }
+
+        if (
+          request.action === "change_video"
+        ) {
+          if (
+            !request.videoId ||
+            !isValidYouTubeVideoId(
+              request.videoId
+            )
+          ) {
+            socket.emit("error_message", {
+              message:
+                "Invalid YouTube video request",
+            });
+            broadcastPendingRequests(
+              io,
+              normalizedRoomId
+            );
+            return;
+          }
+
+          setVideo(
+            normalizedRoomId,
+            request.videoId
+          );
+          setCurrentTime(
+            normalizedRoomId,
+            0
+          );
+          setPlayState(
+            normalizedRoomId,
+            "paused"
+          );
+        }
+
+        const roomState =
+          getRoomState(
+            normalizedRoomId
+          );
+
+        io.to(normalizedRoomId).emit(
+          "sync_state",
+          roomState
+        );
+
+        io.to(requester.socketId).emit(
+          "playback_request_status",
+          {
+            status: "approved",
+            message:
+              "Your playback request was approved",
+            requestId,
+          }
+        );
+
+        broadcastPendingRequests(
+          io,
+          normalizedRoomId
         );
       }
     );
@@ -758,6 +1275,11 @@ const room =
             userId
           );
 
+        removePendingRequestsForUser(
+          normalizedRoomId,
+          userId
+        );
+
         if (!removedParticipant) {
           return;
         }
@@ -790,6 +1312,11 @@ const room =
         io.to(normalizedRoomId).emit(
           "sync_state",
           roomState
+        );
+
+        broadcastPendingRequests(
+          io,
+          normalizedRoomId
         );
 
         console.log(
@@ -858,6 +1385,11 @@ const room =
         getRoomState(normalizedRoomId)
       );
 
+      broadcastPendingRequests(
+        io,
+        normalizedRoomId
+      );
+
       console.log(
         `${requester.username} transferred Host role to ${target.username} in room ${normalizedRoomId}`
       );
@@ -914,6 +1446,11 @@ const room =
         "sync_state",
         getRoomState(normalizedRoomId)
       );
+
+      broadcastPendingRequests(
+        io,
+        normalizedRoomId
+      );
     });
 
     socket.on("remove_participant", (data) => {
@@ -932,7 +1469,11 @@ const room =
 
       const requester = room.participants.get(userId);
 
-      if (!requester || requester.role !== "host") {
+      if (
+        !requester ||
+        requester.role !== "host" ||
+        requester.socketId !== socket.id
+      ) {
         socket.emit("error_message", {
           message: "Only the Host can remove participants",
         });
@@ -955,6 +1496,11 @@ const room =
         targetUserId
       );
 
+      removePendingRequestsForUser(
+        normalizedRoomId,
+        targetUserId
+      );
+
       if (!removed) {
         socket.emit("error_message", {
           message: "Unable to remove participant",
@@ -969,6 +1515,11 @@ const room =
       io.to(normalizedRoomId).emit(
         "sync_state",
         getRoomState(normalizedRoomId)
+      );
+
+      broadcastPendingRequests(
+        io,
+        normalizedRoomId
       );
 
       const targetSocket = io.sockets.sockets.get(targetSocketId);
@@ -1037,6 +1588,11 @@ const room =
           );
 
         if (removed) {
+          removePendingRequestsForUser(
+            removed.roomId,
+            removed.participant.userId
+          );
+
           const roomState =
             getRoomState(
               removed.roomId
@@ -1058,6 +1614,11 @@ const room =
           io.to(removed.roomId).emit(
             "sync_state",
             roomState
+          );
+
+          broadcastPendingRequests(
+            io,
+            removed.roomId
           );
 
           console.log(

@@ -55,6 +55,29 @@ export default function WatchRoom() {
   const [duration, setDuration] =
     useState(0);
 
+  type PlaybackRequestAction =
+    | "play"
+    | "pause"
+    | "seek"
+    | "change_video";
+
+  type PlaybackRequest = {
+    requestId: string;
+    roomId: string;
+    userId: string;
+    username: string;
+    action: PlaybackRequestAction;
+    currentTime?: number;
+    videoId?: string;
+    createdAt: string;
+  };
+
+  const [pendingRequests, setPendingRequests] =
+    useState<PlaybackRequest[]>([]);
+
+  const [requestStatus, setRequestStatus] =
+    useState("");
+
   const playerRef =
     useRef<YouTubePlayerInstance | null>(
       null
@@ -273,6 +296,44 @@ export default function WatchRoom() {
       navigate("/");
     };
 
+    const handlePendingPlaybackRequests = (
+      requests: PlaybackRequest[]
+    ) => {
+      setPendingRequests(requests);
+    };
+
+    const handlePlaybackRequestStatus = (
+      data: {
+        status:
+          | "pending"
+          | "approved"
+          | "rejected";
+        message: string;
+        requestId?: string;
+      }
+    ) => {
+      setRequestStatus(data.message);
+
+      if (
+        data.status === "approved" ||
+        data.status === "rejected"
+      ) {
+        setTimeout(() => {
+          setRequestStatus("");
+        }, 3000);
+      }
+    };
+
+    socket.on(
+      "pending_playback_requests",
+      handlePendingPlaybackRequests
+    );
+
+    socket.on(
+      "playback_request_status",
+      handlePlaybackRequestStatus
+    );
+
     socket.on(
       "sync_state",
       handleSyncState
@@ -328,6 +389,16 @@ export default function WatchRoom() {
       socket.off(
         "removed_from_room",
         handleRemovedFromRoom
+      );
+
+      socket.off(
+        "pending_playback_requests",
+        handlePendingPlaybackRequests
+      );
+
+      socket.off(
+        "playback_request_status",
+        handlePlaybackRequestStatus
       );
     };
 
@@ -413,6 +484,133 @@ export default function WatchRoom() {
       userId: currentUserId,
       targetUserId,
     });
+  };
+
+  const requestPlaybackAction = (
+    action: PlaybackRequestAction,
+    options?: {
+      currentTime?: number;
+      videoId?: string;
+    }
+  ) => {
+    if (!roomId || !currentUserId) {
+      return;
+    }
+
+    setRequestStatus(
+      "Sending request..."
+    );
+
+    socket.emit(
+      "request_playback_action",
+      {
+        roomId:
+          roomId.trim().toUpperCase(),
+        userId: currentUserId,
+        action,
+        currentTime:
+          options?.currentTime,
+        videoId:
+          options?.videoId,
+      }
+    );
+  };
+
+  const requestPlay = () => {
+    const time =
+      playerRef.current?.getCurrentTime() ??
+      currentTime;
+
+    requestPlaybackAction(
+      "play",
+      { currentTime: time }
+    );
+  };
+
+  const requestPause = () => {
+    const time =
+      playerRef.current?.getCurrentTime() ??
+      currentTime;
+
+    requestPlaybackAction(
+      "pause",
+      { currentTime: time }
+    );
+  };
+
+  const requestSeek = () => {
+    const rawTime =
+      window.prompt(
+        "Enter the time in seconds to seek to:",
+        Math.floor(currentTime).toString()
+      );
+
+    if (rawTime === null) {
+      return;
+    }
+
+    const time = Number(rawTime);
+
+    if (
+      !Number.isFinite(time) ||
+      time < 0
+    ) {
+      setError(
+        "Please enter a valid time in seconds."
+      );
+      return;
+    }
+
+    requestPlaybackAction(
+      "seek",
+      { currentTime: time }
+    );
+  };
+
+  const requestVideoChange = () => {
+    const value =
+      window.prompt(
+        "Paste a YouTube URL or video ID:"
+      );
+
+    if (value === null) {
+      return;
+    }
+
+    const videoId =
+      extractYouTubeVideoId(value);
+
+    if (!videoId) {
+      setError(
+        "Invalid YouTube URL or video ID"
+      );
+      return;
+    }
+
+    requestPlaybackAction(
+      "change_video",
+      { videoId }
+    );
+  };
+
+  const respondToPlaybackRequest = (
+    requestId: string,
+    approved: boolean
+  ) => {
+    if (!roomId || !currentUserId) {
+      return;
+    }
+
+    socket.emit(
+      "respond_playback_request",
+      {
+        roomId:
+          roomId.trim().toUpperCase(),
+        userId: currentUserId,
+        requestId,
+        approved,
+      }
+    );
   };
 
   const playVideo = () => {
@@ -779,6 +977,191 @@ export default function WatchRoom() {
               </strong>
             </div>
           </div>
+
+          {requestStatus && (
+            <div
+              style={{
+                marginTop: "15px",
+                padding: "12px 15px",
+                background: "#374151",
+                borderRadius: "8px",
+                color: "#e5e7eb",
+              }}
+            >
+              {requestStatus}
+            </div>
+          )}
+
+          {!canControl && (
+            <div
+              style={{
+                marginTop: "15px",
+                background: "#1f2937",
+                borderRadius: "12px",
+                padding: "20px",
+              }}
+            >
+              <h2>
+                Request Playback Change
+              </h2>
+
+              <p
+                style={{
+                  color: "#9ca3af",
+                  marginTop: "8px",
+                }}
+              >
+                You are a Participant. Send a request
+                to the Host or Moderator before changing
+                playback.
+              </p>
+
+              <div
+                style={{
+                  display: "flex",
+                  gap: "10px",
+                  flexWrap: "wrap",
+                  marginTop: "15px",
+                }}
+              >
+                <button
+                  onClick={requestPlay}
+                >
+                  Request Play
+                </button>
+
+                <button
+                  onClick={requestPause}
+                >
+                  Request Pause
+                </button>
+
+                <button
+                  onClick={requestSeek}
+                >
+                  Request Seek
+                </button>
+
+                <button
+                  onClick={requestVideoChange}
+                >
+                  Request Video Change
+                </button>
+              </div>
+            </div>
+          )}
+
+          {canControl &&
+            pendingRequests.length > 0 && (
+              <div
+                style={{
+                  marginTop: "15px",
+                  background: "#1f2937",
+                  borderRadius: "12px",
+                  padding: "20px",
+                }}
+              >
+                <h2>
+                  Pending Participant Requests
+                </h2>
+
+                <div
+                  style={{
+                    marginTop: "15px",
+                  }}
+                >
+                  {pendingRequests.map(
+                    (request) => (
+                      <div
+                        key={request.requestId}
+                        style={{
+                          padding: "15px",
+                          marginBottom: "10px",
+                          background: "#111827",
+                          borderRadius: "8px",
+                        }}
+                      >
+                        <strong>
+                          {request.username}
+                        </strong>
+
+                        <div
+                          style={{
+                            color: "#d1d5db",
+                            marginTop: "6px",
+                          }}
+                        >
+                          Requested:{" "}
+                          <strong>
+                            {request.action ===
+                            "change_video"
+                              ? "change video"
+                              : request.action}
+                          </strong>
+
+                          {request.currentTime !==
+                            undefined && (
+                            <>
+                              {" "}at{" "}
+                              {Math.floor(
+                                request.currentTime
+                              )}s
+                            </>
+                          )}
+                        </div>
+
+                        {request.videoId && (
+                          <div
+                            style={{
+                              color: "#9ca3af",
+                              marginTop: "5px",
+                            }}
+                          >
+                            Video ID:{" "}
+                            {request.videoId}
+                          </div>
+                        )}
+
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: "8px",
+                            marginTop: "12px",
+                          }}
+                        >
+                          <button
+                            onClick={() =>
+                              respondToPlaybackRequest(
+                                request.requestId,
+                                true
+                              )
+                            }
+                          >
+                            Approve
+                          </button>
+
+                          <button
+                            onClick={() =>
+                              respondToPlaybackRequest(
+                                request.requestId,
+                                false
+                              )
+                            }
+                            style={{
+                              background:
+                                "#dc2626",
+                              color: "white",
+                            }}
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  )}
+                </div>
+              </div>
+            )}
 
           {/* PARTICIPANTS */}
 
