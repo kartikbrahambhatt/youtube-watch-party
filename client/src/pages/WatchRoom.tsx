@@ -9,6 +9,7 @@ import {
   useParams,
 } from "react-router-dom";
 
+import "../App.css";
 import { socket } from "../services/socket";
 
 import Chat from "../components/Chat";
@@ -772,27 +773,15 @@ export default function WatchRoom() {
 
   if (error) {
     return (
-      <div
-        style={{
-          minHeight: "100vh",
-          background: "#111827",
-          color: "white",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: "20px",
-        }}
-      >
-        <h2>{error}</h2>
-
-        <button
-          onClick={() =>
-            setError("")
-          }
-        >
-          Close
-        </button>
+      <div className="watch-page">
+        <div className="state-card">
+          <div className="state-icon">!</div>
+          <h2>Something went wrong</h2>
+          <p>{error}</p>
+          <button className="primary-btn" onClick={() => setError("")}>
+            Close
+          </button>
+        </div>
       </div>
     );
   }
@@ -805,19 +794,12 @@ export default function WatchRoom() {
 
   if (!room) {
     return (
-      <div
-        style={{
-          minHeight: "100vh",
-          background: "#111827",
-          color: "white",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <h2>
-          Connecting to room...
-        </h2>
+      <div className="watch-page">
+        <div className="state-card loading-card">
+          <div className="loading-spinner" />
+          <h2>Connecting to room...</h2>
+          <p>Setting up your watch party session.</p>
+        </div>
       </div>
     );
   }
@@ -828,472 +810,325 @@ export default function WatchRoom() {
   |--------------------------------------------------------------------------
   */
 
+  const currentParticipant = room.participants.find(
+    (participant) => participant.userId === currentUserId
+  );
+  const currentRole = currentParticipant?.role ?? "participant";
+
+  const roleLabel =
+    currentRole.charAt(0).toUpperCase() + currentRole.slice(1);
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: "#111827",
-        color: "white",
-        padding: "30px",
-      }}
-    >
-      <div
-        style={{
-          maxWidth: "1250px",
-          margin: "0 auto",
-        }}
-      >
+    <div className="watch-page">
+      <div className="watch-shell">
         {/* HEADER */}
-
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent:
-              "space-between",
-            marginBottom: "25px",
-          }}
-        >
-          <div>
-            <h1>
-              YouTube Watch Party
-            </h1>
-
-            <p
-              style={{
-                color: "#9ca3af",
-              }}
-            >
-              Room Code:
-              <strong>
-                {" "}
-                {room.roomId}
-              </strong>
-            </p>
-          </div>
-
-          <button
-            onClick={
-              leaveRoom
-            }
-          >
-            Leave Room
-          </button>
-        </div>
-
-        {/* MAIN */}
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns:
-              "1fr 300px",
-            gap: "25px",
-          }}
-        >
-          {/* VIDEO */}
-
-          <div
-            style={{
-              background:
-                "#1f2937",
-              borderRadius:
-                "12px",
-              padding: "20px",
-            }}
-          >
-            <YouTubePlayer
-              videoId={
-                room.videoId
-              }
-              onPlayerReady={
-                handlePlayerReady
-              }
-            />
-
-            <PlaybackControls
-              canControl={
-                Boolean(
-                  canControl
-                )
-              }
-              isPlaying={
-                room.playState ===
-                "playing"
-              }
-              currentTime={
-                currentTime
-              }
-              duration={
-                duration
-              }
-              onPlay={
-                playVideo
-              }
-              onPause={
-                pauseVideo
-              }
-              onSeek={
-                seekVideo
-              }
-            />
-
-            <VideoInput
-              canControl={
-                Boolean(
-                  canControl
-                )
-              }
-              onChangeVideo={
-                changeVideo
-              }
-            />
-
-            <div
-              style={{
-                marginTop:
-                  "15px",
-                color:
-                  "#9ca3af",
-              }}
-            >
-              Your role:{" "}
-              <strong
-                style={{
-                  color:
-                    "white",
-                }}
-              >
-                {
-                  room.participants.find(
-                    (
-                      participant
-                    ) =>
-                      participant.userId ===
-                      currentUserId
-                  )?.role
-                }
-              </strong>
+        <header className="watch-header">
+          <div className="brand-block">
+            <div className="brand-mark">▶</div>
+            <div>
+              <div className="eyebrow">REAL-TIME WATCH PARTY</div>
+              <h1>YouTube Watch Party</h1>
             </div>
           </div>
 
-          {requestStatus && (
-            <div
-              style={{
-                marginTop: "15px",
-                padding: "12px 15px",
-                background: "#374151",
-                borderRadius: "8px",
-                color: "#e5e7eb",
-              }}
-            >
-              {requestStatus}
+          <div className="header-actions">
+            <div className="room-pill">
+              <span className="room-dot" />
+              <span className="room-label">ROOM</span>
+              <strong>{room.roomId}</strong>
             </div>
-          )}
 
-          {!canControl && (
-            <div
-              style={{
-                marginTop: "15px",
-                background: "#1f2937",
-                borderRadius: "12px",
-                padding: "20px",
-              }}
-            >
-              <h2>
-                Request Playback Change
-              </h2>
+            <button className="leave-btn" onClick={leaveRoom}>
+              Leave Room
+            </button>
+          </div>
+        </header>
 
-              <p
-                style={{
-                  color: "#9ca3af",
-                  marginTop: "8px",
-                }}
-              >
-                You are a Participant. Send a request
-                to the Host or Moderator before changing
-                playback.
-              </p>
-
-              <div
-                style={{
-                  display: "flex",
-                  gap: "10px",
-                  flexWrap: "wrap",
-                  marginTop: "15px",
-                }}
-              >
-                <button
-                  onClick={requestPlay}
-                >
-                  Request Play
-                </button>
-
-                <button
-                  onClick={requestPause}
-                >
-                  Request Pause
-                </button>
-
-                <button
-                  onClick={requestSeek}
-                >
-                  Request Seek
-                </button>
-
-                <button
-                  onClick={requestVideoChange}
-                >
-                  Request Video Change
-                </button>
+        {/* MAIN GRID */}
+        <main className="watch-grid">
+          {/* LEFT / MAIN CONTENT */}
+          <section className="main-column">
+            <div className="video-card">
+              <div className="video-frame">
+                <YouTubePlayer
+                  videoId={room.videoId}
+                  onPlayerReady={handlePlayerReady}
+                />
               </div>
-            </div>
-          )}
 
-          {canControl &&
-            pendingRequests.length > 0 && (
-              <div
-                style={{
-                  marginTop: "15px",
-                  background: "#1f2937",
-                  borderRadius: "12px",
-                  padding: "20px",
-                }}
-              >
-                <h2>
-                  Pending Participant Requests
-                </h2>
-
-                <div
-                  style={{
-                    marginTop: "15px",
-                  }}
-                >
-                  {pendingRequests.map(
-                    (request) => (
-                      <div
-                        key={request.requestId}
-                        style={{
-                          padding: "15px",
-                          marginBottom: "10px",
-                          background: "#111827",
-                          borderRadius: "8px",
-                        }}
-                      >
-                        <strong>
-                          {request.username}
-                        </strong>
-
-                        <div
-                          style={{
-                            color: "#d1d5db",
-                            marginTop: "6px",
-                          }}
-                        >
-                          Requested:{" "}
-                          <strong>
-                            {request.action ===
-                            "change_video"
-                              ? "change video"
-                              : request.action}
-                          </strong>
-
-                          {request.currentTime !==
-                            undefined && (
-                            <>
-                              {" "}at{" "}
-                              {Math.floor(
-                                request.currentTime
-                              )}s
-                            </>
-                          )}
-                        </div>
-
-                        {request.videoId && (
-                          <div
-                            style={{
-                              color: "#9ca3af",
-                              marginTop: "5px",
-                            }}
-                          >
-                            Video ID:{" "}
-                            {request.videoId}
-                          </div>
-                        )}
-
-                        <div
-                          style={{
-                            display: "flex",
-                            gap: "8px",
-                            marginTop: "12px",
-                          }}
-                        >
-                          <button
-                            onClick={() =>
-                              respondToPlaybackRequest(
-                                request.requestId,
-                                true
-                              )
-                            }
-                          >
-                            Approve
-                          </button>
-
-                          <button
-                            onClick={() =>
-                              respondToPlaybackRequest(
-                                request.requestId,
-                                false
-                              )
-                            }
-                            style={{
-                              background:
-                                "#dc2626",
-                              color: "white",
-                            }}
-                          >
-                            Reject
-                          </button>
-                        </div>
-                      </div>
-                    )
-                  )}
+              <div className="video-meta">
+                <div>
+                  <span className="live-dot" />
+                  <span>Live synchronized session</span>
                 </div>
+
+                <span className={`role-badge role-${currentRole}`}>
+                  {roleLabel}
+                </span>
+              </div>
+
+              <PlaybackControls
+                canControl={Boolean(canControl)}
+                isPlaying={room.playState === "playing"}
+                currentTime={currentTime}
+                duration={duration}
+                onPlay={playVideo}
+                onPause={pauseVideo}
+                onSeek={seekVideo}
+              />
+
+              <VideoInput
+                canControl={Boolean(canControl)}
+                onChangeVideo={changeVideo}
+              />
+            </div>
+
+            {/* REQUEST / MODERATION AREA */}
+            {requestStatus && (
+              <div className="status-banner">
+                <span className="status-icon">✓</span>
+                <span>{requestStatus}</span>
               </div>
             )}
 
-          {/* PARTICIPANTS */}
-
-          <div
-            style={{
-              background:
-                "#1f2937",
-              borderRadius:
-                "12px",
-              padding: "20px",
-            }}
-          >
-            <h2>
-              Participants
-            </h2>
-
-            <p
-              style={{
-                color:
-                  "#9ca3af",
-              }}
-            >
-              {
-                room
-                  .participants
-                  .length
-              }{" "}
-              connected
-            </p>
-
-            <div
-              style={{
-                marginTop:
-                  "20px",
-              }}
-            >
-              {room.participants.map((participant) => (
-                <div
-                  key={participant.userId}
-                  style={{
-                    padding: "15px",
-                    marginBottom: "10px",
-                    background: "#111827",
-                    borderRadius: "8px",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      gap: "10px",
-                    }}
-                  >
-                    <div>
-                      <strong>{participant.username}</strong>
-
-                      <div
-                        style={{
-                          color: "#9ca3af",
-                          marginTop: "5px",
-                          textTransform: "capitalize",
-                        }}
-                      >
-                        {participant.role}
-                      </div>
-                    </div>
-
-                    {/* HOST CONTROLS */}
-                    {isHost && participant.userId !== currentUserId && (
-                      <div
-                        style={{
-                          display: "flex",
-                          gap: "8px",
-                          flexWrap: "wrap",
-                        }}
-                      >
-                        <button
-                          onClick={() =>
-                            transferHost(participant.userId)
-                          }
-                        >
-                          Make Host
-                        </button>
-
-                        {participant.role === "participant" ? (
-                          <button
-                            onClick={() =>
-                              promoteToModerator(participant.userId)
-                            }
-                          >
-                            Make Moderator
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() =>
-                              demoteToParticipant(participant.userId)
-                            }
-                          >
-                            Remove Moderator
-                          </button>
-                        )}
-
-                        <button
-                          onClick={() =>
-                            removeUser(participant.userId)
-                          }
-                          style={{
-                            background: "#dc2626",
-                            color: "white",
-                          }}
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    )}
+            {!canControl && (
+              <section className="feature-card request-card">
+                <div className="section-heading">
+                  <div className="section-icon request-icon">↗</div>
+                  <div>
+                    <h2>Request a Playback Change</h2>
+                    <p>
+                      Ask the Host or Moderator before changing the shared
+                      playback.
+                    </p>
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
-          {/* CHAT */}
 
-          <div style={{ marginTop: "25px" }}>
-            <Chat
-              roomId={room.roomId}
-              userId={currentUserId!}
+                <div className="request-actions">
+                  <button className="action-btn" onClick={requestPlay}>
+                    <span>▶</span>
+                    Request Play
+                  </button>
 
-            />
-          </div>
+                  <button className="action-btn" onClick={requestPause}>
+                    <span>Ⅱ</span>
+                    Request Pause
+                  </button>
 
-        </div>
+                  <button className="action-btn" onClick={requestSeek}>
+                    <span>↔</span>
+                    Request Seek
+                  </button>
+
+                  <button className="action-btn" onClick={requestVideoChange}>
+                    <span>⌁</span>
+                    Request Video
+                  </button>
+                </div>
+              </section>
+            )}
+
+            {canControl && pendingRequests.length > 0 && (
+              <section className="feature-card moderation-card">
+                <div className="section-heading">
+                  <div className="section-icon moderation-icon">!</div>
+                  <div>
+                    <div className="heading-row">
+                      <h2>Pending Requests</h2>
+                      <span className="count-badge">{pendingRequests.length}</span>
+                    </div>
+                    <p>Review participant playback requests.</p>
+                  </div>
+                </div>
+
+                <div className="request-list">
+                  {pendingRequests.map((request) => (
+                    <div className="request-item" key={request.requestId}>
+                      <div className="request-user">
+                        <div className="avatar">
+                          {request.username.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <strong>{request.username}</strong>
+                          <span>
+                            Requested{" "}
+                            {request.action === "change_video"
+                              ? "a video change"
+                              : request.action}
+                            {request.currentTime !== undefined
+                              ? ` at ${Math.floor(request.currentTime)}s`
+                              : ""}
+                          </span>
+                          {request.videoId && (
+                            <small>Video: {request.videoId}</small>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="request-decision">
+                        <button
+                          className="approve-btn"
+                          onClick={() =>
+                            respondToPlaybackRequest(
+                              request.requestId,
+                              true
+                            )
+                          }
+                        >
+                          Approve
+                        </button>
+                        <button
+                          className="reject-btn"
+                          onClick={() =>
+                            respondToPlaybackRequest(
+                              request.requestId,
+                              false
+                            )
+                          }
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* CHAT */}
+            <section className="chat-card">
+              <div className="chat-header">
+                <div>
+                  <div className="section-kicker">ROOM CHAT</div>
+                  <h2>Talk with everyone</h2>
+                </div>
+                <span className="online-badge">
+                  <span className="online-dot" />
+                  {room.participants.length} online
+                </span>
+              </div>
+
+              <Chat
+                roomId={room.roomId}
+                userId={currentUserId!}
+              />
+            </section>
+          </section>
+
+          {/* RIGHT SIDEBAR */}
+          <aside className="sidebar">
+            <section className="people-card">
+              <div className="people-heading">
+                <div>
+                  <div className="section-kicker">WATCH PARTY</div>
+                  <h2>People</h2>
+                </div>
+                <span className="people-count">
+                  {room.participants.length}
+                </span>
+              </div>
+
+              <div className="people-list">
+                {room.participants.map((participant) => {
+                  const participantRole = participant.role;
+                  const participantRoleLabel =
+                    participantRole.charAt(0).toUpperCase() +
+                    participantRole.slice(1);
+
+                  return (
+                    <div
+                      className="person-row"
+                      key={participant.userId}
+                    >
+                      <div className="person-main">
+                        <div className="person-avatar">
+                          {participant.username.charAt(0).toUpperCase()}
+                          <span className="presence-dot" />
+                        </div>
+
+                        <div className="person-info">
+                          <strong>
+                            {participant.username}
+                            {participant.userId === currentUserId && (
+                              <span className="you-tag">YOU</span>
+                            )}
+                          </strong>
+                          <span
+                            className={`mini-role mini-role-${participantRole}`}
+                          >
+                            {participantRoleLabel}
+                          </span>
+                        </div>
+                      </div>
+
+                      {isHost && participant.userId !== currentUserId && (
+                        <div className="person-controls">
+                          <button
+                            className="mini-btn"
+                            onClick={() => transferHost(participant.userId)}
+                            title="Make Host"
+                          >
+                            Host
+                          </button>
+
+                          {participant.role === "participant" ? (
+                            <button
+                              className="mini-btn"
+                              onClick={() =>
+                                promoteToModerator(participant.userId)
+                              }
+                              title="Make Moderator"
+                            >
+                              Mod
+                            </button>
+                          ) : (
+                            <button
+                              className="mini-btn"
+                              onClick={() =>
+                                demoteToParticipant(participant.userId)
+                              }
+                              title="Remove Moderator"
+                            >
+                              User
+                            </button>
+                          )}
+
+                          <button
+                            className="mini-btn danger-mini"
+                            onClick={() => removeUser(participant.userId)}
+                            title="Remove participant"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="role-note">
+                <span className="role-note-icon">i</span>
+                <p>
+                  {isHost
+                    ? "You manage roles and can moderate playback requests."
+                    : canControl
+                    ? "You can control playback and approve participant requests."
+                    : "Playback changes require Host or Moderator approval."}
+                </p>
+              </div>
+            </section>
+
+            <section className="room-info-card">
+              <div className="info-icon">⌁</div>
+              <div>
+                <span>ROOM CODE</span>
+                <strong>{room.roomId}</strong>
+                <small>Share this code to invite others.</small>
+              </div>
+            </section>
+          </aside>
+        </main>
       </div>
     </div>
   );
