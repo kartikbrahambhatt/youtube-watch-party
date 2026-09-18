@@ -824,7 +824,7 @@ export default function WatchRoom() {
         {/* HEADER */}
         <header className="watch-header">
           <div className="brand-block">
-            <div className="brand-mark">▶</div>
+            <div className="yt-room-logo"><span>▶</span></div>
             <div>
               <div className="eyebrow">REAL-TIME WATCH PARTY</div>
               <h1>YouTube Watch Party</h1>

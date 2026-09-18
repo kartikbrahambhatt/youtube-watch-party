@@ -143,138 +143,36 @@ export default function Home() {
   };
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "#111827",
-        color: "white",
-        padding: "20px",
-      }}
-    >
-      <div
-        style={{
-          width: "100%",
-          maxWidth: "500px",
-          background: "#1f2937",
-          padding: "40px",
-          borderRadius: "16px",
-        }}
-      >
-        <h1
-          style={{
-            fontSize: "36px",
-            marginBottom: "10px",
-          }}
-        >
-          YouTube Watch Party
-        </h1>
-
-        <p
-          style={{
-            color: "#9ca3af",
-            marginBottom: "30px",
-          }}
-        >
-          Watch YouTube together
-          in real time.
-        </p>
-
-        <input
-          value={username}
-          onChange={(e) =>
-            setUsername(
-              e.target.value
-            )
-          }
-          placeholder="Enter your username"
-          style={{
-            width: "100%",
-            padding: "14px",
-            marginBottom: "15px",
-            borderRadius: "8px",
-            border:
-              "1px solid #374151",
-            background: "#111827",
-            color: "white",
-            boxSizing: "border-box",
-          }}
-        />
-
-        <button
-          onClick={createRoom}
-          style={{
-            width: "100%",
-            padding: "14px",
-            border: "none",
-            borderRadius: "8px",
-            cursor: "pointer",
-            marginBottom: "25px",
-          }}
-        >
-          Create Watch Party
-        </button>
-
-        <div
-          style={{
-            textAlign: "center",
-            color: "#9ca3af",
-            marginBottom: "20px",
-          }}
-        >
-          OR
-        </div>
-
-        <input
-          value={roomId}
-          onChange={(e) =>
-            setRoomId(
-              e.target.value
-            )
-          }
-          placeholder="Enter room code"
-          style={{
-            width: "100%",
-            padding: "14px",
-            marginBottom: "15px",
-            borderRadius: "8px",
-            border:
-              "1px solid #374151",
-            background: "#111827",
-            color: "white",
-            boxSizing: "border-box",
-            textTransform:
-              "uppercase",
-          }}
-        />
-
-        <button
-          onClick={joinRoom}
-          style={{
-            width: "100%",
-            padding: "14px",
-            border: "none",
-            borderRadius: "8px",
-            cursor: "pointer",
-          }}
-        >
-          Join Watch Party
-        </button>
-
-        {error && (
-          <p
-            style={{
-              color: "#ef4444",
-              marginTop: "20px",
-              textAlign: "center",
-            }}
-          >
-            {error}
-          </p>
-        )}
-      </div>
+    <div className="yt-home">
+      <div className="yt-home-noise" />
+      <header className="yt-home-header">
+        <div className="yt-brand"><div className="yt-logo"><span>▶</span></div><div><strong>WatchParty</strong><span>Watch together</span></div></div>
+        <div className="yt-live-pill"><span /> LIVE</div>
+      </header>
+      <main className="yt-home-main">
+        <section className="yt-hero">
+          <div className="yt-hero-copy">
+            <div className="yt-kicker">YOUTUBE WATCH PARTY</div>
+            <h1>Watch YouTube.<br /><span>Together.</span></h1>
+            <p>Create a private room, invite your friends, and watch the same video in perfect sync.</p>
+            <div className="yt-features"><div><b>●</b><span>Real-time playback sync</span></div><div><b>●</b><span>Live room chat</span></div><div><b>●</b><span>Host & moderator controls</span></div></div>
+          </div>
+          <section className="yt-entry-card">
+            <div className="yt-card-top"><div className="yt-card-icon">▶</div><div><h2>Start watching</h2><p>Enter your name to continue</p></div></div>
+            <label>Your name</label>
+            <input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="e.g. Kartik" autoComplete="off" />
+            <button className="yt-primary-action" onClick={createRoom}><span>+</span>Create a watch party<b>→</b></button>
+            <div className="yt-or"><span />OR<span /></div>
+            <label>Have a room code?</label>
+            <div className="yt-join-row"><input value={roomId} onChange={(e) => setRoomId(e.target.value)} placeholder="ABC123" autoComplete="off" maxLength={12} /><button onClick={joinRoom}>Join</button></div>
+            {error && <div className="yt-error">⚠ {error}</div>}
+            <div className="yt-card-note"><span>🔒</span>Private room • Share the code with your friends</div>
+          </section>
+        </section>
+        <section className="yt-how"><div><b>01</b><span>Create a room</span></div><i /><div><b>02</b><span>Share the code</span></div><i /><div><b>03</b><span>Watch together</span></div></section>
+      </main>
+      <footer className="yt-home-footer"><span>Built for synchronized YouTube watching</span><span>●</span><span>Real-time • Private • Simple</span></footer>
     </div>
   );
+
 }
