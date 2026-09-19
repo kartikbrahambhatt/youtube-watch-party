@@ -89,7 +89,6 @@ export default function YouTubePlayer({
               autoplay: 0,
               controls: 0,
               rel: 0,
-              modestbranding: 1,
             },
 
             events: {
@@ -167,26 +166,41 @@ export default function YouTubePlayer({
         width: "100%",
         aspectRatio: "16 / 9",
         background: "#000",
+        position: "relative",
+        overflow: "hidden",
       }}
     >
       {videoId ? (
-        <div
-          ref={containerRef}
-          style={{
-            width: "100%",
-            height: "100%",
-          }}
-        />
+        <>
+          <div
+            ref={containerRef}
+            style={{
+              width: "100%",
+              height: "100%",
+            }}
+          />
+
+          {/* Block native YouTube mouse/touch controls.
+              Playback stays controlled by the app. */}
+          <div
+            aria-hidden="true"
+            style={{
+              position: "absolute",
+              inset: 0,
+              zIndex: 10,
+              background: "transparent",
+              cursor: "default",
+            }}
+          />
+        </>
       ) : (
         <div
           style={{
             width: "100%",
             height: "100%",
             display: "flex",
-            alignItems:
-              "center",
-            justifyContent:
-              "center",
+            alignItems: "center",
+            justifyContent: "center",
             color: "#9ca3af",
           }}
         >
